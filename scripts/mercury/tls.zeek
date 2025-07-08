@@ -52,20 +52,23 @@ event ssl_extension(c: connection, is_client: bool, code: count, val: string) &p
 event ssl_client_hello(c: connection, version: count, record_version: count, possible_ts: time, client_random: string, session_id: string, ciphers: index_vec, comp_methods: index_vec) &priority=5
 	{
 	local unsorted_ciphers = degrease(ciphers);
-	local tls_ext_string: string = "";
+	local tls_ext_vec: string_vec = vector();
 	if ( c$ssl?$mercury_tls_client_exts )
 		{
 		for ( i, ext in c$ssl$mercury_tls_client_exts )
 			{
 			if ( ext in TLS_EXT_FIXED )
-				tls_ext_string += fmt("(%04x%04x%s)", ext, |c$ssl$mercury_tls_client_vals[i]|, bytestring_to_hexstr(c$ssl$mercury_tls_client_vals[i]));
+				tls_ext_vec += fmt("(%04x%04x%s)", ext, |c$ssl$mercury_tls_client_vals[i]|, bytestring_to_hexstr(c$ssl$mercury_tls_client_vals[i]));
 			else
-				tls_ext_string += fmt("(%04x)", degrease_single(ext));
+				tls_ext_vec += fmt("(%04x)", degrease_single(ext));
 			}
 		}
 
-	local tls_fp: string = fmt("tls/(%04x)(%s)(%s)", version, join_string_vec(unsorted_ciphers, ""), tls_ext_string);
+	local tls_fp: string = fmt("tls/(%04x)(%s)(%s)", version, join_string_vec(unsorted_ciphers, ""), join_string_vec(tls_ext_vec, ""));
+	# FIXME: this could be optimized to use the sort function that's part of mercury
+	local tls_1_fp: string = fmt("tls/1/(%04x)(%s)[%s]", version, join_string_vec(unsorted_ciphers, ""), join_string_vec(sort(tls_ext_vec, strcmp), ""));
 	print tls_fp;
+	print tls_1_fp;
 	}
 
 # more hacky stuff
