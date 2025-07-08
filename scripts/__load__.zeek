@@ -1,1 +1,1 @@
-@load ./main
+@load ./mercury
