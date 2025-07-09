@@ -3,8 +3,16 @@ module Mercury::TLS;
 # This is a quite hacky. We rely on the base SSL scripts of Zeek to be loaded and inject us there.
 
 redef record SSL::Info += {
+	# tls client extension numbers, used for tracking
 	mercury_tls_client_exts: vector of count &optional;
+	# tls client extension values, used internally
 	mercury_tls_client_vals: vector of string &optional;
+	# Mercury TLS NPF
+	mercury_tls_npf: string &log &optional;
+	# Mercury TLS/1 NPF
+	mercury_tls1_npf: string &log &optional;
+	# Mercury TLS/2 NPF
+	mercury_tls2_npf: string &log &optional;
 };
 
 const TLS_GREASE: set[count] = {
@@ -33,7 +41,7 @@ const TLS_EXT_INCLUDE: set[count] = {
 # quite directly adaptec/copied from libmerc/tls.cc. See COPYING
 function is_private_extension(ext: count): bool
 	{
-	return((ext == 65280) || (ext >= 65282));
+	return ( (ext == 65280) || (ext >= 65282) );
 	}
 
 # quite directly adaptec/copied from libmerc/tls.cc. See COPYING
@@ -107,9 +115,10 @@ event ssl_client_hello(c: connection, version: count, record_version: count, pos
 	local tls_1_fp: string = fmt("tls/1/(%04x)(%s)[%s]", version, join_string_vec(unsorted_ciphers, ""), join_string_vec(sort(tls_ext_vec, strcmp), ""));
 	# FIXME: this could be optimized to use the sort function that's part of mercury
 	local tls_2_fp: string = fmt("tls/2/(%04x)(%s)[%s]", version, join_string_vec(unsorted_ciphers, ""), join_string_vec(sort(selected_ext_vec, strcmp), ""));
-	print tls_fp;
-	print tls_1_fp;
-	print tls_2_fp;
+
+	c$ssl$mercury_tls_npf = tls_fp;
+	c$ssl$mercury_tls1_npf = tls_1_fp;
+	c$ssl$mercury_tls2_npf = tls_2_fp;
 	}
 
 # more hacky stuff
