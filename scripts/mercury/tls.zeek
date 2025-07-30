@@ -1,3 +1,5 @@
+##! Implements TLS NPF
+
 module Mercury::TLS;
 
 # This is a quite hacky. We rely on the base SSL scripts of Zeek to be loaded and inject us there.
@@ -47,7 +49,7 @@ function is_private_extension(ext: count): bool
 # quite directly adaptec/copied from libmerc/tls.cc. See COPYING
 function is_unassigned_extension(ext: count): bool
 	{
-	return (ext >=62 && ext <= 65279 && ext !in TLS_GREASE);
+	return ( ext >=62 && ext <= 65279 && ext !in TLS_GREASE );
 	}
 
 
