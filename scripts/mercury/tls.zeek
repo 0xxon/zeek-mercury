@@ -1,5 +1,8 @@
 ##! Implements TLS NPF
 
+@load base/protocols/ssl
+@load base/protocols/quic
+
 module Mercury::TLS;
 
 export {

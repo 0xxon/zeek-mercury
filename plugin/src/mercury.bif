@@ -1,0 +1,84 @@
+module Mercury;
+
+%%{
+#include <cstddef>
+#include <span>
+#include <format>
+
+// Algorithm from RFC 9000 Appendix A.1
+std::optional<std::pair<uint64_t, size_t>> ReadVarint(std::span<const std::byte> data) {
+	if ( data.empty() )
+		return std::nullopt;
+
+	const std::byte first_byte = data[0];
+
+	// first two bits encode length
+	const uint8_t prefix = std::to_integer<uint8_t>(first_byte) >> 6;
+	const size_t length = 1 << prefix;
+
+	if ( data.size() < length )
+		return std::nullopt;
+
+	uint64_t value = std::to_integer<uint8_t>(first_byte) & 0x3F;
+
+	for ( size_t i = 1; i < length; ++i )
+		value = ( value << 8 ) | std::to_integer<uint8_t>(data[i]);
+
+	return std::make_pair(value, length);
+}
+
+%%}
+
+## Decode quic_transport_parameters and return a list of them as a string vector
+## Grease values are converted to 1b
+function quic_transport_parameter%(ext: string%): string_vec
+	%{
+	auto result = zeek::make_intrusive<zeek::VectorVal>(zeek::id::string_vec);
+
+	std::vector<uint64_t> parameter_ids;
+	const u_char* ext_val = ext->Bytes();
+	unsigned int length = ext->Len();
+
+	std::span<const u_char> source_span(ext_val, length);
+	std::span<const std::byte> buffer = std::as_bytes(source_span);
+
+	while ( ! buffer.empty() ) {
+		// RFC 9000 Section 18:
+		// Transport Parameter {
+		//  Transport Parameter ID (i),
+		//  Transport Parameter Length (i),
+		//  Transport Parameter Value (..),
+		// }
+
+		auto tp_id = ReadVarint(buffer);
+
+		if ( ! tp_id )
+			return result;
+
+		parameter_ids.push_back(tp_id->first);
+		buffer = buffer.subspan(tp_id->second);
+
+		auto tp_length = ReadVarint(buffer);
+
+		if ( ! length )
+			return result;
+
+		// have to skip length of lenth field, plus length of value
+		if ( buffer.size() < tp_length->first + tp_length->second )
+			return result;
+
+		buffer = buffer.subspan(tp_length->first + tp_length->second);
+	}
+
+	for ( auto const &id : parameter_ids )
+		{
+		// degrease
+		if ( id % 31 == 27 )
+			result->Append(zeek::make_intrusive<zeek::StringVal>("(1b)"));
+		else
+			// Probably will have to change this for older distributions.
+			result->Append(zeek::make_intrusive<zeek::StringVal>(std::format("({:02x})", id)));
+		}
+
+	return result;
+	%}
