@@ -86,6 +86,10 @@ event ssl_extension(c: connection, is_client: bool, code: count, val: string) &p
 
 event ssl_client_hello(c: connection, version: count, record_version: count, possible_ts: time, client_random: string, session_id: string, ciphers: index_vec, comp_methods: index_vec) &priority=5
 	{
+	# do not generate TLS NPFs for quic
+	if ( c?$quic )
+		return;
+
 	local unsorted_ciphers = degrease(ciphers);
 	local tls_ext_vec: string_vec = vector();
 	local selected_ext_vec: string_vec = vector();
