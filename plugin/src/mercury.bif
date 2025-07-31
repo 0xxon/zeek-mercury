@@ -3,6 +3,7 @@ module Mercury;
 %%{
 #include <cstddef>
 #include <span>
+#include <set>
 #include <format>
 
 // Algorithm from RFC 9000 Appendix A.1
@@ -33,11 +34,12 @@ std::optional<std::pair<uint64_t, size_t>> ReadVarint(std::span<const std::byte>
 
 ## Decode quic_transport_parameters and return a list of them as a string vector
 ## Grease values are converted to 1b
+## Vector is sorted
 function quic_transport_parameter%(ext: string%): string_vec
 	%{
 	auto result = zeek::make_intrusive<zeek::VectorVal>(zeek::id::string_vec);
 
-	std::vector<uint64_t> parameter_ids;
+	std::multiset<uint64_t> parameter_ids;
 	const u_char* ext_val = ext->Bytes();
 	unsigned int length = ext->Len();
 
@@ -57,7 +59,7 @@ function quic_transport_parameter%(ext: string%): string_vec
 		if ( ! tp_id )
 			return result;
 
-		parameter_ids.push_back(tp_id->first);
+		parameter_ids.insert(tp_id->first);
 		buffer = buffer.subspan(tp_id->second);
 
 		auto tp_length = ReadVarint(buffer);

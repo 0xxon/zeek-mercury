@@ -54,7 +54,7 @@ event ssl_client_hello(c: connection, version: count, record_version: count, pos
 				if ( c$quic?$mercury_quic_transport_parameters )
 					parameters = c$quic$mercury_quic_transport_parameters;
 
-				tls_ext_vec += fmt("(0039)[%s]", join_string_vec(sort(parameters, strcmp), ""));
+				tls_ext_vec += fmt("(0039)[%s]", join_string_vec(parameters, ""));
 				}
 			else
 				tls_ext_vec += fmt("(%04x)", degreased_ext);
