@@ -46,11 +46,6 @@ redef record SSL::Info += {
 	mercury_tls2_npf: string &log &optional;
 };
 
-const TLS_GREASE: set[count] = {
-	0x0a0a, 0x1a1a, 0x2a2a, 0x3a3a, 0x4a4a, 0x5a5a, 0x6a6a, 0x7a7a, 0x8a8a, 0x9a9a, 0xaaaa,
-	0xbaba, 0xcaca, 0xdada, 0xeaea, 0xfafa
-};
-
 # quite directly adaptec/copied from libmerc/tls.cc. See COPYING
 function is_private_extension(ext: count): bool
 	{
@@ -60,7 +55,7 @@ function is_private_extension(ext: count): bool
 # quite directly adaptec/copied from libmerc/tls.cc. See COPYING
 function is_unassigned_extension(ext: count): bool
 	{
-	return ( ext >=62 && ext <= 65279 && ext !in TLS_GREASE );
+	return ( ext >=62 && ext <= 65279 && ! ( ( ext & 0x0f0f ) == 0x0a0a ) );
 	}
 
 function degrease(elements: index_vec): string_vec
@@ -68,7 +63,7 @@ function degrease(elements: index_vec): string_vec
 	local out: string_vec;
 	for ( i, element in elements )
 		{
-		if ( element in TLS_GREASE )
+		if ( ( element & 0x0f0f ) == 0x0a0a )
 			out[i] = "0a0a";
 		else
 			out[i] = fmt("%04x", element);
@@ -78,7 +73,7 @@ function degrease(elements: index_vec): string_vec
 
 function degrease_single(val: count): count
 	{
-	return (val in TLS_GREASE) ? 0x0a0a : val;
+	return ( (val & 0x0f0f) == 0x0a0a) ? 0x0a0a : val;
 	}
 
 event ssl_extension(c: connection, is_client: bool, code: count, val: string) &priority=5
