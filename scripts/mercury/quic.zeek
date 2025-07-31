@@ -32,7 +32,7 @@ event ssl_extension(c: connection, is_client: bool, code: count, val: string)
 
 event ssl_client_hello(c: connection, version: count, record_version: count, possible_ts: time, client_random: string, session_id: string, ciphers: index_vec, comp_methods: index_vec) &priority=5
 	{
-	# do not generate TLS NPFs for quic
+	# only generate for quic
 	if ( !c?$quic || !c$quic?$mercury_raw_version )
 		return;
 
@@ -62,7 +62,6 @@ event ssl_client_hello(c: connection, version: count, record_version: count, pos
 			}
 		}
 
-	# FIXME: this could be optimized to use the sort function that's part of mercury
 	local npf = fmt("quic/(%08x)(%04x)(%s)[%s]", c$quic$mercury_raw_version, version, join_string_vec(unsorted_ciphers, ""), join_string_vec(tls_ext_vec, ""));
 	c$quic$npf = npf;
 	}
