@@ -7,7 +7,7 @@ module Mercury;
 #include <format>
 
 // Algorithm from RFC 9000 Appendix A.1
-std::optional<std::pair<uint64_t, size_t>> ReadVarint(std::span<const std::byte> data) {
+std::optional<std::pair<uint64_t, size_t>> ReadVarint(std::span<const std::byte> data, bool keep_prefix = false) {
 	if ( data.empty() )
 		return std::nullopt;
 
@@ -20,9 +20,12 @@ std::optional<std::pair<uint64_t, size_t>> ReadVarint(std::span<const std::byte>
 	if ( data.size() < length )
 		return std::nullopt;
 
-	// uint64_t value = std::to_integer<uint8_t>(first_byte) & 0x3F;
-	// Don't remove the prefix from the first byte, as the reference implementation doesn't do so.
-	uint64_t value = std::to_integer<uint8_t>(first_byte);
+	uint64_t value;
+	if ( keep_prefix )
+		// Don't remove the prefix from the first byte, as the reference implementation doesn't do so.
+		value = std::to_integer<uint8_t>(first_byte);
+	else
+		value = std::to_integer<uint8_t>(first_byte) & 0x3F;
 
 	for ( size_t i = 1; i < length; ++i )
 		value = ( value << 8 ) | std::to_integer<uint8_t>(data[i]);
@@ -54,12 +57,20 @@ function quic_transport_parameter%(ext: string%): string_vec
 		//  Transport Parameter Value (..),
 		// }
 
-		auto tp_id = ReadVarint(buffer);
+		// FIXME: this is a workaround for the fact that the mercury implementation uses
+		// a combination of numbers with and without the prefix for the fingerprint
+		auto tp_id = ReadVarint(buffer, false);
+		auto tp_id_with_prefix = ReadVarint(buffer, true);
 
-		if ( ! tp_id )
+		if ( ! tp_id || ! tp_id_with_prefix )
 			return result;
 
-		parameter_ids.insert(tp_id->first);
+		// degrease
+		if ( tp_id->first % 31 == 27 ) // for degreasing - use the actual value
+			parameter_ids.insert(27);
+		else
+			parameter_ids.insert(tp_id_with_prefix->first); // but for adding, use the one with prefix
+
 		buffer = buffer.subspan(tp_id->second);
 
 		auto tp_length = ReadVarint(buffer);
@@ -76,12 +87,8 @@ function quic_transport_parameter%(ext: string%): string_vec
 
 	for ( auto const &id : parameter_ids )
 		{
-		// degrease
-		if ( id % 31 == 27 )
-			result->Append(zeek::make_intrusive<zeek::StringVal>("(1b)"));
-		else
-			// Probably will have to change this for older distributions.
-			result->Append(zeek::make_intrusive<zeek::StringVal>(std::format("({:02x})", id)));
+		// Probably will have to change this for older distributions.
+		result->Append(zeek::make_intrusive<zeek::StringVal>(std::format("({:02x})", id)));
 		}
 
 	return result;
