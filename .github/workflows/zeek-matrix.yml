@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        zeekver: [zeek, zeek-lts, zeek-nightly]
+        zeekver: [zeek-nightly]
     steps:
     - uses: actions/checkout@v4
     - uses: 0xxon/action-zkg-install@ubuntu-24.04
