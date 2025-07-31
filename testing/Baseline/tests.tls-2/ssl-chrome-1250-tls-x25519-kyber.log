@@ -7,5 +7,5 @@
 #open XXXX-XX-XX-XX-XX-XX
 #fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	version	cipher	curve	server_name	resumed	last_alert	next_protocol	established	ssl_history	cert_chain_fps	client_cert_chain_fps	sni_matches_cert	npf
 #types	time	string	addr	port	addr	port	string	string	string	string	bool	string	string	bool	string	vector[string]	vector[string]	bool	string
-XXXXXXXXXX.XXXXXX	CHhAvVGS1DHFjwGM9	0.0.51.217	13783	142.250.200.14	443	TLSv13	TLS_AES_128_GCM_SHA256	X25519Kyber768Draft00	lh3.google.com	F	-	-	T	CsiI	-	-	-	-
+XXXXXXXXXX.XXXXXX	CHhAvVGS1DHFjwGM9	0.0.51.217	13783	142.250.200.14	443	TLSv13	TLS_AES_128_GCM_SHA256	X25519Kyber768Draft00	lh3.google.com	F	-	-	T	CsiI	-	-	-	tls/(0303)(0a0a130113021303c02bc02fc02cc030cca9cca8c013c014009c009d002f0035)((0a0a)(0023)(000d0012001004030804040105030805050108060601)(000b00020100)(000a000c000acaca6399001d00170018)(001b0003020002)(4469)(0033)(0010000e000c02683208687474702f312e31)(002b0007068a8a03040303)(0017)(ff01)(000500050100000000)(002d00020101)(fe0d)(0012)(0000)(0a0a))
 #close XXXX-XX-XX-XX-XX-XX

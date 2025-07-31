@@ -42,19 +42,20 @@ event ssl_client_hello(c: connection, version: count, record_version: count, pos
 
 	if ( c$ssl?$mercury_tls_client_exts )
 		{
-		for ( i, ext in c$ssl$mercury_tls_client_exts )
+		local extensions : vector of count = sort(c$ssl$mercury_tls_client_exts);
+
+		for ( i, ext in extensions )
 			{
 			local degreased_ext = Mercury::TLS::degrease_single(ext);
 			if ( ext in Mercury::TLS::TLS_EXT_FIXED )
-				tls_ext_vec += fmt("(%04x%04x%s)", ext, |c$ssl$mercury_tls_client_vals[i]|, bytestring_to_hexstr(c$ssl$mercury_tls_client_vals[i]));
+				tls_ext_vec += fmt("(%04x%04x%s)", ext, |c$ssl$mercury_tls_client_vals[ext]|, bytestring_to_hexstr(c$ssl$mercury_tls_client_vals[ext]));
 			else if ( ext == 0x39 || ext == 0xffa5 ) # quic_transport_parameters
 				{
-				# FIXME: parantheses are not correct
 				local parameters: vector of string;
 				if ( c$quic?$mercury_quic_transport_parameters )
 					parameters = c$quic$mercury_quic_transport_parameters;
 
-				tls_ext_vec += fmt("(0039)[%s]", join_string_vec(parameters, ""));
+				tls_ext_vec += fmt("((0039)[%s])", join_string_vec(parameters, ""));
 				}
 			else
 				tls_ext_vec += fmt("(%04x)", degreased_ext);
@@ -62,6 +63,6 @@ event ssl_client_hello(c: connection, version: count, record_version: count, pos
 		}
 
 	# FIXME: this could be optimized to use the sort function that's part of mercury
-	local npf = fmt("quic/(%08x)(%04x)(%s)[%s]", c$quic$mercury_raw_version, version, join_string_vec(unsorted_ciphers, ""), join_string_vec(sort(tls_ext_vec, strcmp), ""));
+	local npf = fmt("quic/(%08x)(%04x)(%s)[%s]", c$quic$mercury_raw_version, version, join_string_vec(unsorted_ciphers, ""), join_string_vec(tls_ext_vec, ""));
 	c$quic$npf = npf;
 	}

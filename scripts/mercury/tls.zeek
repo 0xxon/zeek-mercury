@@ -29,6 +29,16 @@ export {
 
 	## replace greased element with 0a0a
 	global degrease_single: function(val: count): count;
+
+	## fingerprint versions
+	type TlsFingerprintVersion: enum {
+		MERCURY_TLS_NONE,
+		MERCURY_TLS,
+		MERCURY_TLS_1,
+		MERCURY_TLS_2
+	};
+
+	option fingerprint_version = MERCURY_TLS_NONE;
 }
 
 # This is a quite hacky. We rely on the base SSL scripts of Zeek to be loaded and inject us there.
@@ -37,13 +47,9 @@ redef record SSL::Info += {
 	# tls client extension numbers, used for tracking
 	mercury_tls_client_exts: vector of count &optional;
 	# tls client extension values, used internally
-	mercury_tls_client_vals: vector of string &optional;
+	mercury_tls_client_vals: table[count] of string &optional;
 	# Mercury TLS NPF
-	mercury_tls_npf: string &log &optional;
-	# Mercury TLS/1 NPF
-	mercury_tls1_npf: string &log &optional;
-	# Mercury TLS/2 NPF
-	mercury_tls2_npf: string &log &optional;
+	npf: string &log &optional;
 };
 
 # quite directly adaptec/copied from libmerc/tls.cc. See COPYING
@@ -81,55 +87,68 @@ event ssl_extension(c: connection, is_client: bool, code: count, val: string) &p
 	if ( ! is_client )
 		return;
 
+	local degreased = degrease_single(code);
+
 	if ( ! c$ssl?$mercury_tls_client_exts )	{
 		c$ssl$mercury_tls_client_exts = vector();
-		c$ssl$mercury_tls_client_vals = vector();
+		c$ssl$mercury_tls_client_vals = table();
 	}
-	c$ssl$mercury_tls_client_exts[|c$ssl$mercury_tls_client_exts|] = code;
-	c$ssl$mercury_tls_client_vals[|c$ssl$mercury_tls_client_vals|] = val;
+	c$ssl$mercury_tls_client_exts[|c$ssl$mercury_tls_client_exts|] = degreased;
+	c$ssl$mercury_tls_client_vals[degreased] = val;
 	}
 
 event ssl_client_hello(c: connection, version: count, record_version: count, possible_ts: time, client_random: string, session_id: string, ciphers: index_vec, comp_methods: index_vec) &priority=5
 	{
 	# do not generate TLS NPFs for quic
-	if ( c?$quic )
+	if ( c?$quic || fingerprint_version == MERCURY_TLS_NONE )
 		return;
 
 	local unsorted_ciphers = degrease(ciphers);
 	local tls_ext_vec: string_vec = vector();
-	local selected_ext_vec: string_vec = vector();
+
+
 	if ( c$ssl?$mercury_tls_client_exts )
 		{
-		for ( i, ext in c$ssl$mercury_tls_client_exts )
-			{
-			local degreased_ext = degrease_single(ext);
-			# tls and tls/1
-			if ( ext in TLS_EXT_FIXED )
-				tls_ext_vec += fmt("(%04x%04x%s)", ext, |c$ssl$mercury_tls_client_vals[i]|, bytestring_to_hexstr(c$ssl$mercury_tls_client_vals[i]));
-			else
-				tls_ext_vec += fmt("(%04x)", degreased_ext);
+		local extensions: vector of count;
+		if ( fingerprint_version == MERCURY_TLS )
+			extensions = c$ssl$mercury_tls_client_exts;
+		else
+			extensions = sort(c$ssl$mercury_tls_client_exts);
 
-			# tls/2
-			if ( degreased_ext in TLS_EXT_FIXED )
-				selected_ext_vec += fmt("(%04x%04x%s)", degreased_ext, |c$ssl$mercury_tls_client_vals[i]|, bytestring_to_hexstr(c$ssl$mercury_tls_client_vals[i]));
-			else if ( degreased_ext in TLS_EXT_INCLUDE )
-				selected_ext_vec += fmt("(%04x)", degreased_ext);
-			else if ( is_unassigned_extension(ext) )
-				selected_ext_vec += "(003e)";
-			else if ( is_private_extension(ext) )
-				selected_ext_vec += "(ff00)";
+		for ( i, ext in extensions )
+			{
+			if ( fingerprint_version == MERCURY_TLS_2 )
+				{
+				# tls/2
+				if ( ext in TLS_EXT_FIXED )
+					tls_ext_vec += fmt("(%04x%04x%s)", ext, |c$ssl$mercury_tls_client_vals[ext]|, bytestring_to_hexstr(c$ssl$mercury_tls_client_vals[ext]));
+				else if ( ext in TLS_EXT_INCLUDE )
+					tls_ext_vec += fmt("(%04x)", ext);
+				else if ( is_unassigned_extension(ext) )
+					tls_ext_vec += "(003e)";
+				else if ( is_private_extension(ext) )
+					tls_ext_vec += "(ff00)";
+				}
+			else
+				{
+				# tls and tls/1
+				if ( ext in TLS_EXT_FIXED )
+					tls_ext_vec += fmt("(%04x%04x%s)", ext, |c$ssl$mercury_tls_client_vals[ext]|, bytestring_to_hexstr(c$ssl$mercury_tls_client_vals[ext]));
+				else
+					tls_ext_vec += fmt("(%04x)", ext);
+				}
 			}
 		}
 
-	local tls_fp: string = fmt("tls/(%04x)(%s)(%s)", version, join_string_vec(unsorted_ciphers, ""), join_string_vec(tls_ext_vec, ""));
-	# FIXME: this could be optimized to use the sort function that's part of mercury
-	local tls_1_fp: string = fmt("tls/1/(%04x)(%s)[%s]", version, join_string_vec(unsorted_ciphers, ""), join_string_vec(sort(tls_ext_vec, strcmp), ""));
-	# FIXME: this could be optimized to use the sort function that's part of mercury
-	local tls_2_fp: string = fmt("tls/2/(%04x)(%s)[%s]", version, join_string_vec(unsorted_ciphers, ""), join_string_vec(sort(selected_ext_vec, strcmp), ""));
+	local tls_fp: string;
+	if ( fingerprint_version == MERCURY_TLS )
+		tls_fp = fmt("tls/(%04x)(%s)(%s)", version, join_string_vec(unsorted_ciphers, ""), join_string_vec(tls_ext_vec, ""));
+	else if ( fingerprint_version == MERCURY_TLS_1 )
+		tls_fp = fmt("tls/1/(%04x)(%s)[%s]", version, join_string_vec(unsorted_ciphers, ""), join_string_vec(tls_ext_vec , ""));
+	else if ( fingerprint_version == MERCURY_TLS_2 )
+		tls_fp = fmt("tls/2/(%04x)(%s)[%s]", version, join_string_vec(unsorted_ciphers, ""), join_string_vec(tls_ext_vec, ""));;
 
-	c$ssl$mercury_tls_npf = tls_fp;
-	c$ssl$mercury_tls1_npf = tls_1_fp;
-	c$ssl$mercury_tls2_npf = tls_2_fp;
+	c$ssl$npf = tls_fp;
 	}
 
 # more hacky stuff
