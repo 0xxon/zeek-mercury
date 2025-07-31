@@ -8,7 +8,7 @@ jobs:
   test-nightly:
     runs-on: ubuntu-latest
     steps:
-    - uses: 0xxon/action-zkg-install@trixie
+    - uses: 0xxon/action-zkg-install@ubuntu-24.04
       with:
         pkg: ${{ github.server_url }}/${{ github.repository }}
         zeek_version: zeek-nightly
