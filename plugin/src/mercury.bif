@@ -60,7 +60,7 @@ function quic_transport_parameter%(ext: string%): string_vec
 		// FIXME: this is a workaround for the fact that the mercury implementation uses
 		// a combination of numbers with and without the prefix for the fingerprint
 		auto tp_id = ReadVarint(buffer, false);
-		auto tp_id_with_prefix = ReadVarint(buffer, true);
+		auto tp_id_with_prefix = ReadVarint(buffer, false);
 
 		if ( ! tp_id || ! tp_id_with_prefix )
 			return result;
