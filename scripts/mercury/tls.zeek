@@ -30,6 +30,12 @@ export {
 	## replace greased element with 0a0a
 	global degrease_single: function(val: count): count;
 
+	# is the extension private?
+	global is_private_extension: function(ext: count): bool;
+
+	# is the extension unassigned?
+	global is_unassigned_extension: function(ext: count): bool;
+
 	## fingerprint versions
 	type TlsFingerprintVersion: enum {
 		MERCURY_TLS_NONE,

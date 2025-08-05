@@ -5,6 +5,17 @@
 
 module Mercury::QUIC;
 
+export {
+	## Fingerprint versions
+	type TlsFingerprintVersion: enum {
+		MERCURY_QUIC,
+		MERCURY_QUIC_1,
+	};
+
+	# Fingerprint version to use in the log
+	option fingerprint_version = MERCURY_QUIC;
+}
+
 redef record QUIC::Info += {
 	## The raw version of the initial quic packet
 	mercury_raw_version: count &optional;
@@ -46,7 +57,6 @@ event ssl_client_hello(c: connection, version: count, record_version: count, pos
 
 		for ( i, ext in extensions )
 			{
-			local degreased_ext = Mercury::TLS::degrease_single(ext);
 			if ( ext in Mercury::TLS::TLS_EXT_FIXED )
 				tls_ext_vec += fmt("(%04x%04x%s)", ext, |c$ssl$mercury_tls_client_vals[ext]|, bytestring_to_hexstr(c$ssl$mercury_tls_client_vals[ext]));
 			else if ( ext == 0x39 || ext == 0xffa5 ) # quic_transport_parameters
@@ -58,10 +68,27 @@ event ssl_client_hello(c: connection, version: count, record_version: count, pos
 				tls_ext_vec += fmt("((0039)[%s])", join_string_vec(parameters, ""));
 				}
 			else
-				tls_ext_vec += fmt("(%04x)", degreased_ext);
+				{
+				if ( fingerprint_version == MERCURY_QUIC )
+					tls_ext_vec += fmt("(%04x)", ext);
+				else
+					{
+					if ( ext in Mercury::TLS::TLS_EXT_INCLUDE )
+						tls_ext_vec += fmt("(%04x)", ext);
+					else if ( Mercury::TLS::is_unassigned_extension(ext) )
+						tls_ext_vec += "(003e)";
+					else if ( Mercury::TLS::is_private_extension(ext) )
+						tls_ext_vec += "(ff00)";
+					}
+				}
 			}
 		}
 
-	local npf = fmt("quic/(%08x)(%04x)(%s)[%s]", c$quic$mercury_raw_version, version, join_string_vec(unsorted_ciphers, ""), join_string_vec(tls_ext_vec, ""));
+	local npf: string;
+	if ( fingerprint_version == MERCURY_QUIC )
+		npf = fmt("quic/(%08x)(%04x)(%s)[%s]", c$quic$mercury_raw_version, version, join_string_vec(unsorted_ciphers, ""), join_string_vec(tls_ext_vec, ""));
+	else
+		npf = fmt("quic/1/(%08x)(%04x)(%s)[%s]", c$quic$mercury_raw_version, version, join_string_vec(unsorted_ciphers, ""), join_string_vec(tls_ext_vec, ""));
+
 	c$quic$npf = npf;
 	}
