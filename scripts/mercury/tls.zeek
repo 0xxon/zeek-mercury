@@ -1,4 +1,4 @@
-##! Implements TLS NPF
+##! Implements TLS/DTLS NPF
 
 @load base/protocols/ssl
 @load base/protocols/quic
@@ -109,6 +109,19 @@ event ssl_client_hello(c: connection, version: count, record_version: count, pos
 	if ( c?$quic || fingerprint_version == MERCURY_TLS_NONE )
 		return;
 
+	# we already had a client hello. Only do this the first time.
+	if ( c$ssl?$npf )
+		return;
+
+	local output_fingerprint_version = fingerprint_version;
+
+	local dtls = F;
+	if ( record_version >= 0xFEFC && record_version <= 0xFEFF )
+		{
+		dtls = T;
+		output_fingerprint_version = MERCURY_TLS; # dtls fingerprint is equivalent with tls 1 fingerprint
+		}
+
 	local unsorted_ciphers = degrease(ciphers);
 	local tls_ext_vec: string_vec = vector();
 
@@ -116,14 +129,14 @@ event ssl_client_hello(c: connection, version: count, record_version: count, pos
 	if ( c$ssl?$mercury_tls_client_exts )
 		{
 		local extensions: vector of count;
-		if ( fingerprint_version == MERCURY_TLS )
+		if ( output_fingerprint_version == MERCURY_TLS )
 			extensions = c$ssl$mercury_tls_client_exts;
 		else
 			extensions = sort(c$ssl$mercury_tls_client_exts);
 
 		for ( i, ext in extensions )
 			{
-			if ( fingerprint_version == MERCURY_TLS_2 )
+			if ( output_fingerprint_version == MERCURY_TLS_2 )
 				{
 				# tls/2
 				if ( ext in TLS_EXT_FIXED )
@@ -147,14 +160,17 @@ event ssl_client_hello(c: connection, version: count, record_version: count, pos
 		}
 
 	local tls_fp: string;
-	if ( fingerprint_version == MERCURY_TLS )
+	if ( output_fingerprint_version == MERCURY_TLS )
 		tls_fp = fmt("tls/(%04x)(%s)(%s)", version, join_string_vec(unsorted_ciphers, ""), join_string_vec(tls_ext_vec, ""));
-	else if ( fingerprint_version == MERCURY_TLS_1 )
+	else if ( output_fingerprint_version == MERCURY_TLS_1 )
 		tls_fp = fmt("tls/1/(%04x)(%s)[%s]", version, join_string_vec(unsorted_ciphers, ""), join_string_vec(tls_ext_vec , ""));
-	else if ( fingerprint_version == MERCURY_TLS_2 )
+	else if ( output_fingerprint_version == MERCURY_TLS_2 )
 		tls_fp = fmt("tls/2/(%04x)(%s)[%s]", version, join_string_vec(unsorted_ciphers, ""), join_string_vec(tls_ext_vec, ""));;
 
-	c$ssl$npf = tls_fp;
+	if ( dtls )
+		c$ssl$npf = "d"+tls_fp;
+	else
+		c$ssl$npf = tls_fp;
 	}
 
 # more hacky stuff
